@@ -15,6 +15,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
@@ -292,5 +293,9 @@ public class FileService {
 
   public List<UploadSession> getUnfinishedUploadSessions() {
     return sessionRepo.findByCompletedFalse();
+  }
+
+  public Optional<UploadSession> findById(UUID id) {
+    return sessionRepo.findById(id);
   }
 }
