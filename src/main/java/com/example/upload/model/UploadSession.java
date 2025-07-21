@@ -14,7 +14,16 @@ public class UploadSession {
     @Column(nullable = false)
     private boolean completed = false;
 
+    @Column(length = 50)
+    private String encoding;
 
+    public String getEncoding() {
+        return encoding;
+    }
+
+    public void setEncoding(String encoding) {
+        this.encoding = encoding;
+    }
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
 
