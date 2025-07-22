@@ -2,8 +2,10 @@ package com.example.upload.service;
 
 import com.example.upload.model.UploadChunk;
 import com.example.upload.model.UploadSession;
+import com.example.upload.model.ZipEntryMetadata;
 import com.example.upload.repository.UploadChunkRepository;
 import com.example.upload.repository.UploadSessionRepository;
+import com.example.upload.repository.ZipEntryMetadataRepository;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,12 +39,14 @@ public class FileService {
   private final UploadSessionRepository sessionRepo;
   private final UploadChunkRepository chunkRepo;
   private final DataSource dataSource;
+  private final ZipEntryMetadataRepository zipEntryMetadataRepository;
 
   public FileService(DataSource dataSource, UploadSessionRepository sessionRepo
-      , UploadChunkRepository chunkRepo) {
+      , UploadChunkRepository chunkRepo, ZipEntryMetadataRepository zipEntryMetadataRepository) {
     this.dataSource = dataSource;
     this.sessionRepo = sessionRepo;
     this.chunkRepo = chunkRepo;
+    this.zipEntryMetadataRepository = zipEntryMetadataRepository;
 
   }
 
@@ -211,8 +215,17 @@ public class FileService {
         ZipArchiveInputStream zipIn = new ZipArchiveInputStream(mergedStream);
 
         ZipArchiveEntry entry;
-        while ((entry = zipIn.getNextZipEntry()) != null) {
+        while ((entry = zipIn.getNextEntry()) != null) {
           String name = entry.getName();
+
+          ZipEntryMetadata meta = new ZipEntryMetadata();
+          meta.setPath(entry.getName());
+          meta.setDirectory(entry.isDirectory());
+          meta.setSize(entry.getSize());
+          meta.setCompressedSize(entry.getCompressedSize());
+          meta.setUploadSession(session);
+
+          zipEntryMetadataRepository.save(meta); // JPA repository
 
           if (entry.isDirectory()) {
             log.info("Directory: {}", entry.getName());
