@@ -1,8 +1,8 @@
-package com.example.upload.listeners;
+package de.adesso.fileupload.listeners;
 
-import com.example.upload.model.UploadSession;
-import com.example.upload.service.FileService;
-import com.example.upload.events.UploadCompletedEvent;
+import de.adesso.fileupload.model.UploadSession;
+import de.adesso.fileupload.service.FileService;
+import de.adesso.fileupload.events.UploadCompletedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;

@@ -1,4 +1,4 @@
-package com.example.upload.model;
+package de.adesso.fileupload.model;
 
 import static jakarta.persistence.GenerationType.AUTO;
 

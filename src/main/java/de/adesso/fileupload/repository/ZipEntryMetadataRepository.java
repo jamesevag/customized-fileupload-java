@@ -1,6 +1,6 @@
-package com.example.upload.repository;
+package de.adesso.fileupload.repository;
 
-import com.example.upload.model.ZipEntryMetadata;
+import de.adesso.fileupload.model.ZipEntryMetadata;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ZipEntryMetadataRepository extends JpaRepository<ZipEntryMetadata, Long> {

@@ -1,6 +1,6 @@
-package com.example.upload.repository;
+package de.adesso.fileupload.repository;
 
-import com.example.upload.model.UploadSession;
+import de.adesso.fileupload.model.UploadSession;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;

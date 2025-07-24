@@ -1,7 +1,7 @@
-package com.example.upload.controller;
+package de.adesso.fileupload.controller;
 
-import com.example.upload.model.UploadSession;
-import com.example.upload.service.FileService;
+import de.adesso.fileupload.model.UploadSession;
+import de.adesso.fileupload.service.FileService;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;

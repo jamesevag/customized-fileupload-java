@@ -1,17 +1,21 @@
-package com.example.upload.service;
+package de.adesso.fileupload.service;
 
-import com.example.upload.events.UploadCompletedEvent;
-import com.example.upload.model.UploadChunk;
-import com.example.upload.model.UploadSession;
-import com.example.upload.model.ZipEntryMetadata;
-import com.example.upload.repository.UploadChunkRepository;
-import com.example.upload.repository.UploadSessionRepository;
-import com.example.upload.repository.ZipEntryMetadataRepository;
+import de.adesso.fileupload.enums.FileTypeEnum;
+import de.adesso.fileupload.enums.FilenameEncodingEnum;
+import de.adesso.fileupload.events.UploadCompletedEvent;
+import de.adesso.fileupload.model.UploadChunk;
+import de.adesso.fileupload.model.UploadSession;
+import de.adesso.fileupload.model.ZipEntryMetadata;
+import de.adesso.fileupload.repository.UploadChunkRepository;
+import de.adesso.fileupload.repository.UploadSessionRepository;
+import de.adesso.fileupload.repository.ZipEntryMetadataRepository;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.SequenceInputStream;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -212,40 +216,49 @@ public class FileService {
   public void detectAndStoreEncodingForZip(UploadSession session) {
     boolean anyUtf8 = false;
     boolean anyNonUtf8 = false;
-    if (session.getFileName().toLowerCase().endsWith(".zip")) {
+    if (session.getFileName().toLowerCase().endsWith(FileTypeEnum.ZIP.getValue())) {
       try (InputStream mergedStream = getMergedInputStream(session.getId())) {
         ZipArchiveInputStream zipIn = new ZipArchiveInputStream(mergedStream);
+        Charset cp437 = Charset.forName(FilenameEncodingEnum.CP437.getValue());
 
         ZipArchiveEntry entry;
+        String nameEncoded;
         while ((entry = zipIn.getNextEntry()) != null) {
-
-          storeZipMetadata(session, entry);
 
           if (entry.getGeneralPurposeBit().usesUTF8ForNames()) {
             anyUtf8 = true;
+            nameEncoded = new String(entry.getRawName(), StandardCharsets.UTF_8);
           } else {
             anyNonUtf8 = true;
+            nameEncoded = new String(entry.getRawName(), cp437);
           }
+
+          storeZipMetadata(session, entry, nameEncoded);
         }
       } catch (IOException e) {
-        session.setEncoding("unknown");
+        session.setEncoding(FilenameEncodingEnum.UNKNOWN.getValue());
       }
     }
-    if (anyUtf8 && !anyNonUtf8) {
-      session.setEncoding("UTF-8 (filenames)");
-    } else if (!anyUtf8 && anyNonUtf8) {
-      session.setEncoding("CP437 (default or unknown)");
-    } else if (anyUtf8 && anyNonUtf8) {
-      session.setEncoding("Mixed (UTF-8 and CP437)");
-    } else {
-      session.setEncoding("unknown");
-    }
+    determineFileEncoding(session, anyUtf8, anyNonUtf8);
     sessionRepo.save(session);
   }
 
-  private void storeZipMetadata(UploadSession session, ZipArchiveEntry entry) {
+  private void determineFileEncoding(UploadSession session, boolean anyUtf8,
+      boolean anyNonUtf8) {
+    if (anyUtf8 && !anyNonUtf8) {
+      session.setEncoding(FilenameEncodingEnum.UTF8.getValue());
+    } else if (!anyUtf8 && anyNonUtf8) {
+      session.setEncoding(FilenameEncodingEnum.CP437.getValue());
+    } else if (anyUtf8 && anyNonUtf8) {
+      session.setEncoding(FilenameEncodingEnum.MIXED.getValue());
+    } else {
+      session.setEncoding(FilenameEncodingEnum.UNKNOWN.getValue());
+    }
+  }
+
+  private void storeZipMetadata(UploadSession session, ZipArchiveEntry entry, String nameEncoded) {
     ZipEntryMetadata meta = new ZipEntryMetadata();
-    meta.setPath(entry.getName());
+    meta.setPath(nameEncoded);
     meta.setDirectory(entry.isDirectory());
     meta.setSize(entry.getSize());
     meta.setCompressedSize(entry.getCompressedSize());
