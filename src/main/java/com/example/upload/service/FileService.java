@@ -1,5 +1,6 @@
 package com.example.upload.service;
 
+import com.example.upload.events.UploadCompletedEvent;
 import com.example.upload.model.UploadChunk;
 import com.example.upload.model.UploadSession;
 import com.example.upload.model.ZipEntryMetadata;
@@ -9,6 +10,7 @@ import com.example.upload.repository.ZipEntryMetadataRepository;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -28,6 +30,7 @@ import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
 import org.postgresql.PGConnection;
 import org.postgresql.largeobject.LargeObject;
 import org.postgresql.largeobject.LargeObjectManager;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -40,14 +43,16 @@ public class FileService {
   private final UploadChunkRepository chunkRepo;
   private final DataSource dataSource;
   private final ZipEntryMetadataRepository zipEntryMetadataRepository;
+  private final ApplicationEventPublisher eventPublisher;
 
   public FileService(DataSource dataSource, UploadSessionRepository sessionRepo
-      , UploadChunkRepository chunkRepo, ZipEntryMetadataRepository zipEntryMetadataRepository) {
+      , UploadChunkRepository chunkRepo, ZipEntryMetadataRepository zipEntryMetadataRepository,
+      ApplicationEventPublisher eventPublisher) {
     this.dataSource = dataSource;
     this.sessionRepo = sessionRepo;
     this.chunkRepo = chunkRepo;
     this.zipEntryMetadataRepository = zipEntryMetadataRepository;
-
+    this.eventPublisher = eventPublisher;
   }
 
   public StreamingResponseBody streamFile(UUID sessionId) {
@@ -58,7 +63,7 @@ public class FileService {
       try (
           Connection connection = dataSource.getConnection()
       ) {
-        connection.setAutoCommit(false); // Required for PostgreSQL Large Object API
+        connection.setAutoCommit(false);
 
         PGConnection pgConnection = connection.unwrap(PGConnection.class);
         LargeObjectManager lobj = pgConnection.getLargeObjectAPI();
@@ -81,7 +86,6 @@ public class FileService {
                   outputStream.write(buffer, 0, bytesRead);
                   totalBytes += bytesRead;
 
-                  // Optional: only flush every 10MB or at end
                   if (totalBytes % (10 * 1024 * 1024) < buffer.length) {
                     outputStream.flush();
                     log.info("Streamed {} MB", totalBytes / (1024 * 1024));
@@ -90,7 +94,7 @@ public class FileService {
               }
             }
 
-            outputStream.flush(); // Final flush
+            outputStream.flush();
             connection.commit();
             log.info("Streaming complete. Total bytes: {}", totalBytes);
           }
@@ -120,11 +124,9 @@ public class FileService {
 
         ResultSet rs = stmt.executeQuery();
 
-        // Prepare the ZIP output stream
         try (ZipArchiveOutputStream zipOut = new ZipArchiveOutputStream(outputStream)) {
           zipOut.setMethod(ZipArchiveOutputStream.DEFLATED);
 
-          // You can give any file name inside the zip
           ZipArchiveEntry entry = new ZipArchiveEntry(originalFileName);
           GeneralPurposeBit gpb = new GeneralPurposeBit();
           gpb.useUTF8ForNames(true);
@@ -142,7 +144,7 @@ public class FileService {
             }
           }
 
-          zipOut.closeArchiveEntry(); // important
+          zipOut.closeArchiveEntry();
           zipOut.finish();
         }
 
@@ -156,7 +158,7 @@ public class FileService {
   public InputStream getMergedInputStream(UUID sessionId) {
     try {
       Connection conn = dataSource.getConnection();
-      conn.setAutoCommit(false); // Needed for PostgreSQL large object access
+      conn.setAutoCommit(false);
 
       PGConnection pgConn = conn.unwrap(PGConnection.class);
       LargeObjectManager lobj = pgConn.getLargeObjectAPI();
@@ -207,37 +209,18 @@ public class FileService {
     }
   }
 
-
-  public void detectAndStoreEncodingForZip(UUID id, UploadSession session, boolean anyUtf8,
-      boolean anyNonUtf8) {
+  public void detectAndStoreEncodingForZip(UploadSession session) {
+    boolean anyUtf8 = false;
+    boolean anyNonUtf8 = false;
     if (session.getFileName().toLowerCase().endsWith(".zip")) {
-      try (InputStream mergedStream = getMergedInputStream(id)) {
+      try (InputStream mergedStream = getMergedInputStream(session.getId())) {
         ZipArchiveInputStream zipIn = new ZipArchiveInputStream(mergedStream);
 
         ZipArchiveEntry entry;
         while ((entry = zipIn.getNextEntry()) != null) {
-          String name = entry.getName();
 
-          ZipEntryMetadata meta = new ZipEntryMetadata();
-          meta.setPath(entry.getName());
-          meta.setDirectory(entry.isDirectory());
-          meta.setSize(entry.getSize());
-          meta.setCompressedSize(entry.getCompressedSize());
-          meta.setUploadSession(session);
+          storeZipMetadata(session, entry);
 
-          zipEntryMetadataRepository.save(meta); // JPA repository
-
-          if (entry.isDirectory()) {
-            log.info("Directory: {}", entry.getName());
-          } else {
-            // Check if this file is inside a subdirectory
-            if (name.contains("/")) {
-              String folder = name.substring(0, name.lastIndexOf("/"));
-              log.info("[Implied Directory]: {}", folder);
-            }
-
-            log.info("File: {}", name);
-          }
           if (entry.getGeneralPurposeBit().usesUTF8ForNames()) {
             anyUtf8 = true;
           } else {
@@ -257,6 +240,18 @@ public class FileService {
     } else {
       session.setEncoding("unknown");
     }
+    sessionRepo.save(session);
+  }
+
+  private void storeZipMetadata(UploadSession session, ZipArchiveEntry entry) {
+    ZipEntryMetadata meta = new ZipEntryMetadata();
+    meta.setPath(entry.getName());
+    meta.setDirectory(entry.isDirectory());
+    meta.setSize(entry.getSize());
+    meta.setCompressedSize(entry.getCompressedSize());
+    meta.setUploadSession(session);
+
+    zipEntryMetadataRepository.save(meta);
   }
 
   public void saveUploadedChunk(UUID id, Integer chunkIndex, MultipartFile chunk)
@@ -271,6 +266,12 @@ public class FileService {
     chunkRepo.save(uploadChunk);
 
     session.setUploadedSize(session.getUploadedSize() + chunk.getSize());
+
+    if (session.getUploadedSize() == session.getTotalSize()) {
+      session.setComplete(true);
+      eventPublisher.publishEvent(new UploadCompletedEvent(session));
+    }
+
     sessionRepo.save(session);
   }
 
@@ -287,12 +288,9 @@ public class FileService {
 
   public void saveSessionAsCompleted(UUID id) {
     UploadSession session = sessionRepo.findById(id).orElseThrow();
-    boolean anyUtf8 = false;
-    boolean anyNonUtf8 = false;
 
-    detectAndStoreEncodingForZip(id, session, anyUtf8, anyNonUtf8);
+    detectAndStoreEncodingForZip(session);
 
-    session.setComplete(true);
     sessionRepo.save(session);
   }
 
@@ -311,4 +309,73 @@ public class FileService {
   public Optional<UploadSession> findById(UUID id) {
     return sessionRepo.findById(id);
   }
+
+
+  public void streamFileRange(UUID sessionId, long rangeStart, long rangeEnd,
+      OutputStream outputStream) {
+
+    byte[] buffer = new byte[8192];
+    long currentPosition = 0;
+
+    try (Connection connection = dataSource.getConnection()) {
+      connection.setAutoCommit(false);
+
+      PGConnection pgConnection = connection.unwrap(PGConnection.class);
+      LargeObjectManager lobj = pgConnection.getLargeObjectAPI();
+
+      try (PreparedStatement stmt = connection.prepareStatement(
+          "SELECT chunk_data FROM upload_chunk WHERE upload_session_id = ? ORDER BY chunk_index ASC"
+      )) {
+        stmt.setObject(1, sessionId);
+
+        try (ResultSet rs = stmt.executeQuery()) {
+          while (rs.next() && currentPosition <= rangeEnd) {
+            log.info("Requested: {} - {} | Current pos: {}", rangeStart, rangeEnd, currentPosition);
+
+            long oid = rs.getLong("chunk_data");
+            try (LargeObject obj = lobj.open(oid, LargeObjectManager.READ)) {
+              int chunkSize = obj.size();
+
+              // Skip this chunk entirely
+              if (currentPosition + chunkSize <= rangeStart) {
+                currentPosition += chunkSize;
+                continue;
+              }
+
+              // Seek to the starting byte inside this chunk
+              long skipBytes = Math.max(0, rangeStart - currentPosition);
+              if (skipBytes > 0) {
+                obj.seek((int) skipBytes);
+                currentPosition += skipBytes;
+              }
+
+              int bytesRead;
+              while ((bytesRead = obj.read(buffer, 0, buffer.length)) > 0) {
+                long remaining = rangeEnd - currentPosition + 1;
+                if (bytesRead > remaining) {
+                  bytesRead = (int) remaining;
+                }
+
+                outputStream.write(buffer, 0, bytesRead);
+                outputStream.flush();
+
+                currentPosition += bytesRead;
+
+                if (currentPosition > rangeEnd) {
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      connection.commit();
+      log.info("Range streamed: {} to {}", rangeStart, rangeEnd);
+    } catch (Exception e) {
+      log.error("Error streaming file range", e);
+      throw new RuntimeException("Streaming failed", e);
+    }
+  }
+
 }

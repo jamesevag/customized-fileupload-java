@@ -3,15 +3,21 @@ package com.example.upload.controller;
 import com.example.upload.model.UploadSession;
 import com.example.upload.service.FileService;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+@Slf4j
+@CrossOrigin(origins = "http://localhost:4200")
 @RestController
 @RequestMapping("/download")
 public class DownloadController {
@@ -23,7 +29,8 @@ public class DownloadController {
     this.fileService = downloadService;
   }
 
-  @GetMapping("/{id}")
+  @Deprecated
+  @GetMapping("/{id}/deprecated")
   public ResponseEntity<StreamingResponseBody> downloadFromDatabase(@PathVariable UUID id) {
     UploadSession session = fileService.findById(id).orElseThrow();
 
@@ -50,5 +57,45 @@ public class DownloadController {
         .contentType(MediaType.APPLICATION_OCTET_STREAM)
         .body(body);
   }
+
+
+  @GetMapping("/{id}")
+  public ResponseEntity<StreamingResponseBody> downloadWithRangeSupport(
+      @PathVariable UUID id,
+      @RequestHeader(value = "Range", required = false) String rangeHeader) {
+
+    UploadSession session = fileService.findById(id).orElseThrow();
+    long totalSize = session.getTotalSize();
+    long rangeStart = 0;
+    long rangeEnd = totalSize - 1;
+
+    if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
+      String[] parts = rangeHeader.replace("bytes=", "").split("-");
+      rangeStart = Long.parseLong(parts[0]);
+      if (parts.length > 1 && !parts[1].isBlank()) {
+        rangeEnd = Long.parseLong(parts[1]);
+      }
+    }
+
+    final long finalStart = rangeStart;
+    final long finalEnd = rangeEnd;
+    log.info("Download request: id={}, range={}, totalSize={}", id, rangeStart + "-" + rangeEnd,
+        totalSize);
+
+    StreamingResponseBody responseBody = outputStream ->
+        fileService.streamFileRange(id, finalStart, finalEnd, outputStream);
+
+    return ResponseEntity.status((rangeHeader != null) ? HttpStatus.PARTIAL_CONTENT : HttpStatus.OK)
+        .header(HttpHeaders.CONTENT_DISPOSITION,
+            "attachment; filename=\"" + session.getFileName() + "\"")
+        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE)
+        .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+        .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(finalEnd - finalStart + 1))
+        .header(HttpHeaders.CONTENT_RANGE, "bytes " + finalStart + "-" + finalEnd + "/" + totalSize)
+        .header(HttpHeaders.ETAG, "\"" + session.getId().toString() + "\"")
+        .header(HttpHeaders.LAST_MODIFIED, session.getCreatedAt().toString())
+        .body(responseBody);
+  }
+
 
 }

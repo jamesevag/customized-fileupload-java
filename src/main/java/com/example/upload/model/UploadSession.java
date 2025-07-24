@@ -1,6 +1,7 @@
 package com.example.upload.model;
 
 import jakarta.persistence.*;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -16,6 +17,13 @@ public class UploadSession {
 
     @Column(length = 50)
     private String encoding;
+
+    @Column(nullable = false, updatable = false)
+    private Instant createdAt = Instant.now();
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 
     public String getEncoding() {
         return encoding;
