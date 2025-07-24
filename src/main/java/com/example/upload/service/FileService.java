@@ -268,7 +268,7 @@ public class FileService {
     session.setUploadedSize(session.getUploadedSize() + chunk.getSize());
 
     if (session.getUploadedSize() == session.getTotalSize()) {
-      session.setComplete(true);
+      session.setCompleted(true);
       eventPublisher.publishEvent(new UploadCompletedEvent(session));
     }
 
@@ -280,7 +280,7 @@ public class FileService {
     session.setId(UUID.randomUUID());
     session.setFileName(fileName);
     session.setTotalSize(totalSize);
-    session.setComplete(false);
+    session.setCompleted(false);
     session.setUploadedSize(0);
     sessionRepo.save(session);
     return session;

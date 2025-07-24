@@ -1,49 +1,39 @@
 package com.example.upload.model;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
+@Setter
 @Entity
+@Table(name = "upload_session")
 public class UploadSession {
-    @Id
-    private UUID id;
 
-    private String fileName;
-    private long totalSize;
-    private long uploadedSize;
-    @Column(nullable = false)
-    private boolean completed = false;
+  @Id
+  private UUID id;
 
-    @Column(length = 50)
-    private String encoding;
+  @Column(name = "file_name")
+  private String fileName;
 
-    @Column(nullable = false, updatable = false)
-    private Instant createdAt = Instant.now();
+  @Column(name = "total_size", nullable = false)
+  private long totalSize;
 
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
+  @Column(name = "uploaded_size", nullable = false)
+  private long uploadedSize;
 
-    public String getEncoding() {
-        return encoding;
-    }
+  @Column(name = "completed")
+  private boolean completed;
 
-    public void setEncoding(String encoding) {
-        this.encoding = encoding;
-    }
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
+  @Column(name = "encoding", length = 50)
+  private String encoding;
 
-    public String getFileName() { return fileName; }
-    public void setFileName(String fileName) { this.fileName = fileName; }
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private Instant createdAt = Instant.now();
 
-    public long getTotalSize() { return totalSize; }
-    public void setTotalSize(long totalSize) { this.totalSize = totalSize; }
-
-    public long getUploadedSize() { return uploadedSize; }
-    public void setUploadedSize(long uploadedSize) { this.uploadedSize = uploadedSize; }
-
-    public boolean isComplete() { return completed; }
-    public void setComplete(boolean completed) { this.completed = completed; }
 }
