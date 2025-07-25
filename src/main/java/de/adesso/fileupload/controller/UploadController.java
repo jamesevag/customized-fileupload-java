@@ -1,6 +1,6 @@
 package de.adesso.fileupload.controller;
 
-import de.adesso.fileupload.model.UploadSession;
+import de.adesso.fileupload.entity.UploadSession;
 import de.adesso.fileupload.service.FileService;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +42,7 @@ public class UploadController {
   }
 
 
+  @Deprecated
   @PostMapping("/{id}/complete")
   public ResponseEntity<?> completeUpload(@PathVariable UUID id) {
     fileService.saveSessionAsCompleted(id);

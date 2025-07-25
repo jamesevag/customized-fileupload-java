@@ -3,6 +3,7 @@ package de.adesso.fileupload.enums;
 public enum FileTypeEnum {
 
   ZIP(".zip"),
+  SEVENZIP(".7z"),
   TXT(".txt"),
   OTHER("Other");
 

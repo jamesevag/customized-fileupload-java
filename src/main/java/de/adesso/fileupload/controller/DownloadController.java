@@ -1,6 +1,6 @@
 package de.adesso.fileupload.controller;
 
-import de.adesso.fileupload.model.UploadSession;
+import de.adesso.fileupload.entity.UploadSession;
 import de.adesso.fileupload.service.FileService;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;

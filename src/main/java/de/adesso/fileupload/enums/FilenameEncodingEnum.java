@@ -2,7 +2,7 @@ package de.adesso.fileupload.enums;
 
 public enum FilenameEncodingEnum {
 
-  UTF8("UTF8"),
+  UTF8("UTF-8"),
   CP437("CP437"),
   MIXED("Mixed UTF-8 and CP437"),
   UNKNOWN("Unknown");

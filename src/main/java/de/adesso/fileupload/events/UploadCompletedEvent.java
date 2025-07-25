@@ -1,6 +1,6 @@
 package de.adesso.fileupload.events;
 
-import de.adesso.fileupload.model.UploadSession;
+import de.adesso.fileupload.entity.UploadSession;
 import lombok.Getter;
 import org.springframework.context.ApplicationEvent;
 

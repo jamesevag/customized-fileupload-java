@@ -1,6 +1,6 @@
 package de.adesso.fileupload.repository;
 
-import de.adesso.fileupload.model.UploadChunk;
+import de.adesso.fileupload.entity.UploadChunk;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
