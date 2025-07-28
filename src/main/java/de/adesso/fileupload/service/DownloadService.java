@@ -1,11 +1,6 @@
 package de.adesso.fileupload.service;
 
-import de.adesso.fileupload.entity.UploadChunk;
 import de.adesso.fileupload.entity.UploadSession;
-import de.adesso.fileupload.entity.ZipEntryMetadata;
-import de.adesso.fileupload.enums.FileTypeEnum;
-import de.adesso.fileupload.enums.FilenameEncodingEnum;
-import de.adesso.fileupload.events.UploadCompletedEvent;
 import de.adesso.fileupload.repository.UploadChunkRepository;
 import de.adesso.fileupload.repository.UploadSessionRepository;
 import de.adesso.fileupload.repository.ZipEntryMetadataRepository;
@@ -14,8 +9,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.SequenceInputStream;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -29,19 +22,17 @@ import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.archivers.zip.GeneralPurposeBit;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
-import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
 import org.postgresql.PGConnection;
 import org.postgresql.largeobject.LargeObject;
 import org.postgresql.largeobject.LargeObjectManager;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @Slf4j
 @Service
-public class FileService {
+public class DownloadService {
 
   private final UploadSessionRepository sessionRepo;
   private final UploadChunkRepository chunkRepo;
@@ -49,7 +40,7 @@ public class FileService {
   private final ZipEntryMetadataRepository zipEntryMetadataRepository;
   private final ApplicationEventPublisher eventPublisher;
 
-  public FileService(DataSource dataSource, UploadSessionRepository sessionRepo
+  public DownloadService(DataSource dataSource, UploadSessionRepository sessionRepo
       , UploadChunkRepository chunkRepo, ZipEntryMetadataRepository zipEntryMetadataRepository,
       ApplicationEventPublisher eventPublisher) {
     this.dataSource = dataSource;
@@ -57,6 +48,10 @@ public class FileService {
     this.chunkRepo = chunkRepo;
     this.zipEntryMetadataRepository = zipEntryMetadataRepository;
     this.eventPublisher = eventPublisher;
+  }
+
+  public Optional<UploadSession> findById(UUID id) {
+    return sessionRepo.findById(id);
   }
 
   public StreamingResponseBody streamFile(UUID sessionId) {
@@ -211,100 +206,6 @@ public class FileService {
     } catch (Exception e) {
       throw new RuntimeException("Failed to create merged InputStream from chunks", e);
     }
-  }
-
-  public void detectAndStoreEncodingForZip(UploadSession session) {
-    if (session.getFileName().toLowerCase().endsWith(FileTypeEnum.ZIP.getValue())) {
-      try (InputStream mergedStream = getMergedInputStream(session.getId())) {
-        ZipArchiveInputStream zipIn = new ZipArchiveInputStream(mergedStream);
-
-        ZipArchiveEntry entry;
-        while ((entry = zipIn.getNextEntry()) != null) {
-
-          String pathEncoded;
-          String encoding;
-          if (entry.getGeneralPurposeBit().usesUTF8ForNames()) {
-            pathEncoded = new String(entry.getRawName(), StandardCharsets.UTF_8);
-            encoding = FilenameEncodingEnum.UTF8.getValue();
-          } else {
-            pathEncoded = new String(entry.getRawName(),
-                Charset.forName(FilenameEncodingEnum.CP437.getValue()));
-            encoding = FilenameEncodingEnum.CP437.getValue();
-          }
-
-          storeZipMetadata(session, entry, pathEncoded, encoding);
-        }
-      } catch (IOException e) {
-        log.error("Failed to store ZIP entry", e);
-      }
-    }
-  }
-
-
-  private void storeZipMetadata(UploadSession session, ZipArchiveEntry entry, String pathEncoded,
-      String encoding) {
-    ZipEntryMetadata meta = new ZipEntryMetadata();
-    meta.setPath(pathEncoded);
-    meta.setDirectory(entry.isDirectory());
-    meta.setSize(entry.getSize());
-    meta.setCompressedSize(entry.getCompressedSize());
-    meta.setUploadSession(session);
-    meta.setEncoding(encoding);
-    zipEntryMetadataRepository.save(meta);
-  }
-
-  public void saveUploadedChunk(UUID id, Integer chunkIndex, MultipartFile chunk)
-      throws IOException {
-    UploadSession session = sessionRepo.findById(id).orElseThrow();
-
-    UploadChunk uploadChunk = new UploadChunk();
-    uploadChunk.setUploadSession(session);
-    uploadChunk.setChunkIndex(chunkIndex);
-    uploadChunk.setChunkData(chunk.getBytes());
-
-    chunkRepo.save(uploadChunk);
-
-    session.setUploadedSize(session.getUploadedSize() + chunk.getSize());
-
-    if (session.getUploadedSize() == session.getTotalSize()) {
-      session.setCompleted(true);
-      eventPublisher.publishEvent(new UploadCompletedEvent(session));
-    }
-
-    sessionRepo.save(session);
-  }
-
-  public UploadSession saveUploadSession(String fileName, long totalSize) {
-    UploadSession session = new UploadSession();
-    session.setId(UUID.randomUUID());
-    session.setFileName(fileName);
-    session.setTotalSize(totalSize);
-    session.setCompleted(false);
-    session.setUploadedSize(0);
-    sessionRepo.save(session);
-    return session;
-  }
-
-  public void saveSessionAsCompleted(UUID id) {
-    UploadSession session = sessionRepo.findById(id).orElseThrow();
-    detectAndStoreEncodingForZip(session);
-    sessionRepo.save(session);
-  }
-
-  public List<Integer> getChunkIndexes(UUID id) {
-    return chunkRepo.findUploadedChunkIndexes(id);
-  }
-
-  public List<UploadSession> getFinishedUploadSessions() {
-    return sessionRepo.findByCompletedTrue();
-  }
-
-  public List<UploadSession> getUnfinishedUploadSessions() {
-    return sessionRepo.findByCompletedFalse();
-  }
-
-  public Optional<UploadSession> findById(UUID id) {
-    return sessionRepo.findById(id);
   }
 
 

@@ -1,11 +1,16 @@
-CREATE TABLE public.zip_entry_metadata (
-                                           id int8 NOT NULL,
-                                           compressed_size int8 NOT NULL,
-                                           directory bool NOT NULL,
-                                           "path" varchar(255) NULL,
-                                           "size" int8 NOT NULL,
-                                           "encoding" varchar(50) DEFAULT 'UTF-8'::character varying NULL,
-                                           upload_session_id uuid NULL,
-                                           CONSTRAINT zip_entry_metadata_pkey PRIMARY KEY (id),
-                                           CONSTRAINT fkh30ywy1gerts02e2k2sjka7fy FOREIGN KEY (upload_session_id) REFERENCES public.upload_session(id)
+CREATE TABLE public.zip_entry_metadata
+(
+    id                BIGSERIAL PRIMARY KEY,
+    path              VARCHAR(255),
+    directory         BOOLEAN,
+    size              BIGINT,
+    compressed_size   BIGINT,
+    encoding          VARCHAR(50),
+    status            VARCHAR(50) NOT NULL,
+    failure_reason    VARCHAR(1024),
+    upload_session_id UUID        NOT NULL,
+    CONSTRAINT fk_zip_entry_upload_session
+        FOREIGN KEY (upload_session_id)
+            REFERENCES public.upload_session (id)
+            ON DELETE CASCADE
 );

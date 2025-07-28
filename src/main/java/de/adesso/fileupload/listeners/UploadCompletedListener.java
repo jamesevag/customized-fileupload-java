@@ -1,8 +1,8 @@
 package de.adesso.fileupload.listeners;
 
 import de.adesso.fileupload.entity.UploadSession;
-import de.adesso.fileupload.service.FileService;
 import de.adesso.fileupload.events.UploadCompletedEvent;
+import de.adesso.fileupload.service.UploadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -14,13 +14,13 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class UploadCompletedListener {
 
-  private final FileService fileService;
+  private final UploadService uploadService;
 
   @Async
   @EventListener
   public void handleUploadComplete(UploadCompletedEvent event) {
     UploadSession session = event.getSession();
     log.info("📦 Upload complete for session: {} — running encoding detection", session.getId());
-    fileService.detectAndStoreEncodingForZip(session);
+    uploadService.storeZipFileMetadata(session);
   }
 }

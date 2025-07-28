@@ -1,7 +1,7 @@
 package de.adesso.fileupload.controller;
 
 import de.adesso.fileupload.entity.UploadSession;
-import de.adesso.fileupload.service.FileService;
+import de.adesso.fileupload.service.DownloadService;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -22,19 +22,19 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 @RequestMapping("/download")
 public class DownloadController {
 
-  private final FileService fileService;
+  private final DownloadService downloadService;
 
   public DownloadController(
-      FileService downloadService) {
-    this.fileService = downloadService;
+      DownloadService downloadService) {
+    this.downloadService = downloadService;
   }
 
   @Deprecated
   @GetMapping("/{id}/deprecated")
   public ResponseEntity<StreamingResponseBody> downloadFromDatabase(@PathVariable UUID id) {
-    UploadSession session = fileService.findById(id).orElseThrow();
+    UploadSession session = downloadService.findById(id).orElseThrow();
 
-    StreamingResponseBody response = fileService.streamFile(session.getId());
+    StreamingResponseBody response = downloadService.streamFile(session.getId());
 
     return ResponseEntity.ok()
         .header(HttpHeaders.CONTENT_DISPOSITION,
@@ -47,10 +47,10 @@ public class DownloadController {
 
   @GetMapping("/{id}/zip")
   public ResponseEntity<StreamingResponseBody> downloadAsZip(@PathVariable UUID id) {
-    UploadSession session = fileService.findById(id).orElseThrow();
+    UploadSession session = downloadService.findById(id).orElseThrow();
     String zipName = session.getFileName().replaceAll("(?i)\\.txt$", ""); // case-insensitive .txt
 
-    StreamingResponseBody body = fileService.downloadAsZip(id, session.getFileName());
+    StreamingResponseBody body = downloadService.downloadAsZip(id, session.getFileName());
 
     return ResponseEntity.ok()
         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zipName + ".zip\"")
@@ -64,7 +64,7 @@ public class DownloadController {
       @PathVariable UUID id,
       @RequestHeader(value = "Range", required = false) String rangeHeader) {
 
-    UploadSession session = fileService.findById(id).orElseThrow();
+    UploadSession session = downloadService.findById(id).orElseThrow();
     long totalSize = session.getTotalSize();
     long rangeStart = 0;
     long rangeEnd = totalSize - 1;
@@ -83,7 +83,7 @@ public class DownloadController {
         totalSize);
 
     StreamingResponseBody responseBody = outputStream ->
-        fileService.streamFileRange(id, finalStart, finalEnd, outputStream);
+        downloadService.streamFileRange(id, finalStart, finalEnd, outputStream);
 
     return ResponseEntity.status((rangeHeader != null) ? HttpStatus.PARTIAL_CONTENT : HttpStatus.OK)
         .header(HttpHeaders.CONTENT_DISPOSITION,
