@@ -1,11 +1,11 @@
 package de.adesso.fileupload.service;
 
+import de.adesso.fileupload.dao.DownloadRangeDao;
 import de.adesso.fileupload.entity.UploadSession;
 import de.adesso.fileupload.repository.UploadSessionRepository;
 import java.io.OutputStream;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -20,11 +20,15 @@ import org.springframework.stereotype.Service;
 public class DownloadService {
 
   private final UploadSessionRepository sessionRepo;
+  private final DownloadRangeDao downloadRangeDao;
   private final DataSource dataSource;
 
-  public DownloadService(DataSource dataSource, UploadSessionRepository sessionRepo) {
+  public DownloadService(DataSource dataSource, UploadSessionRepository sessionRepo,
+      DownloadRangeDao downloadRangeDao) {
     this.dataSource = dataSource;
     this.sessionRepo = sessionRepo;
+    this.downloadRangeDao = downloadRangeDao;
+
   }
 
   public Optional<UploadSession> findById(UUID id) {
@@ -43,48 +47,41 @@ public class DownloadService {
       PGConnection pgConnection = connection.unwrap(PGConnection.class);
       LargeObjectManager lobj = pgConnection.getLargeObjectAPI();
 
-      try (PreparedStatement stmt = connection.prepareStatement(
-          "SELECT chunk_data FROM upload_chunk WHERE upload_session_id = ? ORDER BY chunk_index ASC"
-      )) {
-        stmt.setObject(1, sessionId);
+      List<Long> chunkOids = downloadRangeDao.findChunkOidsBySessionId(sessionId, connection);
 
-        try (ResultSet rs = stmt.executeQuery()) {
-          while (rs.next() && currentPosition <= rangeEnd) {
-            log.info("Requested: {} - {} | Current pos: {}", rangeStart, rangeEnd, currentPosition);
+      for (long oid : chunkOids) {
+        if (currentPosition > rangeEnd) {
+          break;
+        }
 
-            long oid = rs.getLong("chunk_data");
-            try (LargeObject obj = lobj.open(oid, LargeObjectManager.READ)) {
-              int chunkSize = obj.size();
+        try (LargeObject obj = lobj.open(oid, LargeObjectManager.READ)) {
+          int chunkSize = obj.size();
 
-              // Skip this chunk entirely
-              if (currentPosition + chunkSize <= rangeStart) {
-                currentPosition += chunkSize;
-                continue;
-              }
+          if (currentPosition + chunkSize <= rangeStart) {
+            currentPosition += chunkSize;
+            continue;
+          }
 
-              // Seek to the starting byte inside this chunk
-              long skipBytes = Math.max(0, rangeStart - currentPosition);
-              if (skipBytes > 0) {
-                obj.seek((int) skipBytes);
-                currentPosition += skipBytes;
-              }
+          long skipBytes = Math.max(0, rangeStart - currentPosition);
+          if (skipBytes > 0) {
+            obj.seek((int) skipBytes);
+            currentPosition += skipBytes;
+          }
 
-              int bytesRead;
-              while ((bytesRead = obj.read(buffer, 0, buffer.length)) > 0) {
-                long remaining = rangeEnd - currentPosition + 1;
-                if (bytesRead > remaining) {
-                  bytesRead = (int) remaining;
-                }
+          int bytesRead;
+          while ((bytesRead = obj.read(buffer, 0, buffer.length)) > 0) {
+            long remaining = rangeEnd - currentPosition + 1;
+            if (bytesRead > remaining) {
+              bytesRead = (int) remaining;
+            }
 
-                outputStream.write(buffer, 0, bytesRead);
-                outputStream.flush();
+            outputStream.write(buffer, 0, bytesRead);
+            outputStream.flush();
 
-                currentPosition += bytesRead;
+            currentPosition += bytesRead;
 
-                if (currentPosition > rangeEnd) {
-                  break;
-                }
-              }
+            if (currentPosition > rangeEnd) {
+              break;
             }
           }
         }
@@ -92,10 +89,10 @@ public class DownloadService {
 
       connection.commit();
       log.info("Range streamed: {} to {}", rangeStart, rangeEnd);
+
     } catch (Exception e) {
       log.error("Error streaming file range", e);
       throw new RuntimeException("Streaming failed", e);
     }
   }
-
 }

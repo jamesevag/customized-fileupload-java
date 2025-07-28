@@ -1,7 +1,7 @@
-package de.adesso.fileupload.listeners;
+package de.adesso.fileupload.listener;
 
 import de.adesso.fileupload.entity.UploadSession;
-import de.adesso.fileupload.events.UploadCompletedEvent;
+import de.adesso.fileupload.event.UploadCompletedEvent;
 import de.adesso.fileupload.service.UploadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

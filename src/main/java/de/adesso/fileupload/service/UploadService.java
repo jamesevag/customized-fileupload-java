@@ -7,7 +7,7 @@ import de.adesso.fileupload.enums.ChunkUploadStatusEnum;
 import de.adesso.fileupload.enums.FileTypeEnum;
 import de.adesso.fileupload.enums.FilenameEncodingEnum;
 import de.adesso.fileupload.enums.ZipMetaDataStatusEnum;
-import de.adesso.fileupload.events.UploadCompletedEvent;
+import de.adesso.fileupload.event.UploadCompletedEvent;
 import de.adesso.fileupload.repository.UploadChunkRepository;
 import de.adesso.fileupload.repository.UploadSessionRepository;
 import de.adesso.fileupload.repository.ZipEntryMetadataRepository;

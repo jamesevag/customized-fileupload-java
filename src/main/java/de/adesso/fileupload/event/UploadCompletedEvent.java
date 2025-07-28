@@ -1,4 +1,4 @@
-package de.adesso.fileupload.events;
+package de.adesso.fileupload.event;
 
 import de.adesso.fileupload.entity.UploadSession;
 import lombok.Getter;
