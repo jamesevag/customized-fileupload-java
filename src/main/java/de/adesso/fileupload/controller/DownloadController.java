@@ -29,36 +29,6 @@ public class DownloadController {
     this.downloadService = downloadService;
   }
 
-  @Deprecated
-  @GetMapping("/{id}/deprecated")
-  public ResponseEntity<StreamingResponseBody> downloadFromDatabase(@PathVariable UUID id) {
-    UploadSession session = downloadService.findById(id).orElseThrow();
-
-    StreamingResponseBody response = downloadService.streamFile(session.getId());
-
-    return ResponseEntity.ok()
-        .header(HttpHeaders.CONTENT_DISPOSITION,
-            "attachment; filename=\"" + session.getFileName() + "\"")
-        .header(HttpHeaders.CONTENT_ENCODING, "identity") // disables compression
-        .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
-        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-        .body(response);
-  }
-
-  @GetMapping("/{id}/zip")
-  public ResponseEntity<StreamingResponseBody> downloadAsZip(@PathVariable UUID id) {
-    UploadSession session = downloadService.findById(id).orElseThrow();
-    String zipName = session.getFileName().replaceAll("(?i)\\.txt$", ""); // case-insensitive .txt
-
-    StreamingResponseBody body = downloadService.downloadAsZip(id, session.getFileName());
-
-    return ResponseEntity.ok()
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zipName + ".zip\"")
-        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-        .body(body);
-  }
-
-
   @GetMapping("/{id}")
   public ResponseEntity<StreamingResponseBody> downloadWithRangeSupport(
       @PathVariable UUID id,

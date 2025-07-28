@@ -21,6 +21,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -66,6 +67,9 @@ public class UploadService {
     session.setTotalSize(totalSize);
     session.setCompleted(false);
     session.setUploadedSize(0);
+    session.setCreatedBy("TestUser");
+    session.setCreatedAt(Instant.now());
+
     sessionRepo.save(session);
     return session;
   }

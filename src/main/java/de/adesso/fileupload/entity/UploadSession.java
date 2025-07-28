@@ -21,6 +21,7 @@ public class UploadSession {
   private static final String UPLOADED_SIZE = "uploaded_size";
   private static final String COMPLETED = "completed";
   private static final String CREATED_AT = "created_at";
+  private static final String CREATED_BY = "created_by";
 
   @Id
   private UUID id;
@@ -38,6 +39,8 @@ public class UploadSession {
   private boolean completed;
 
   @Column(name = CREATED_AT, nullable = false, updatable = false)
-  private Instant createdAt = Instant.now();
+  private Instant createdAt;
 
+  @Column(name = CREATED_BY, nullable = false, updatable = false)
+  private String createdBy;
 }
