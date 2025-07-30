@@ -60,13 +60,14 @@ public class UploadService {
     this.chunkDao = downloadRangeDao;
   }
 
-  public UploadSession saveUploadSession(String fileName, long totalSize) {
+  public UploadSession saveUploadSession(String fileName, long totalSize, String clientIp) {
     UploadSession session = new UploadSession();
     session.setId(UUID.randomUUID());
     session.setFileName(fileName);
     session.setTotalSize(totalSize);
     session.setCompleted(false);
     session.setUploadedSize(0);
+    session.setInitiatingIp(clientIp);
     session.setCreatedBy("TestUser");
     session.setCreatedAt(Instant.now());
 

@@ -2,6 +2,7 @@ package de.adesso.fileupload.controller;
 
 import de.adesso.fileupload.entity.UploadSession;
 import de.adesso.fileupload.service.UploadService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,8 +27,10 @@ public class UploadController {
   }
 
   @PostMapping("/init")
-  public ResponseEntity<?> initUpload(@RequestParam String fileName, @RequestParam long totalSize) {
-    UploadSession session = uploadService.saveUploadSession(fileName, totalSize);
+  public ResponseEntity<?> initUpload(@RequestParam String fileName, @RequestParam long totalSize,
+      HttpServletRequest request) {
+    UploadSession session = uploadService.saveUploadSession(fileName, totalSize,
+        getClientsIp(request));
     return ResponseEntity.ok(Map.of("uploadId", session.getId()));
   }
 
@@ -55,5 +58,14 @@ public class UploadController {
   public List<UploadSession> getFinishedSessions() {
     return uploadService.getFinishedUploadSessions();
   }
+
+  public String getClientsIp(HttpServletRequest request) {
+    String forwardedFor = request.getHeader("X-Forwarded-For");
+    if (forwardedFor != null && !forwardedFor.isBlank()) {
+      return forwardedFor.split(",")[0].trim();
+    }
+    return request.getRemoteAddr();
+  }
+
 
 }

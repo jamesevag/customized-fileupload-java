@@ -2,6 +2,7 @@ package de.adesso.fileupload.controller;
 
 import de.adesso.fileupload.entity.UploadSession;
 import de.adesso.fileupload.service.DownloadService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @Slf4j
@@ -32,9 +34,13 @@ public class DownloadController {
   @GetMapping("/{id}")
   public ResponseEntity<StreamingResponseBody> downloadWithRangeSupport(
       @PathVariable UUID id,
-      @RequestHeader(value = "Range", required = false) String rangeHeader) {
+      @RequestHeader(value = "Range", required = false) String rangeHeader,
+      HttpServletRequest request) {
 
     UploadSession session = downloadService.findById(id).orElseThrow();
+
+    checkClientsIP(getClientsIp(request), session);
+
     long totalSize = session.getTotalSize();
     long rangeStart = 0;
     long rangeEnd = totalSize - 1;
@@ -65,6 +71,23 @@ public class DownloadController {
         .header(HttpHeaders.ETAG, "\"" + session.getId().toString() + "\"")
         .header(HttpHeaders.LAST_MODIFIED, session.getCreatedAt().toString())
         .body(responseBody);
+  }
+
+  private void checkClientsIP(String clientsIp, UploadSession session) {
+    if (!clientsIp.equals(session.getInitiatingIp())) {
+      log.warn("Blocked download from IP {} (allowed: {})", clientsIp, session.getInitiatingIp());
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "Access denied from IP: " + clientsIp
+      );
+    }
+  }
+
+  public String getClientsIp(HttpServletRequest request) {
+    String forwardedFor = request.getHeader("X-Forwarded-For");
+    if (forwardedFor != null && !forwardedFor.isBlank()) {
+      return forwardedFor.split(",")[0].trim();
+    }
+    return request.getRemoteAddr();
   }
 
 

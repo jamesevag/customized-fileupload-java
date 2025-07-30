@@ -22,6 +22,7 @@ public class UploadSession {
   private static final String COMPLETED = "completed";
   private static final String CREATED_AT = "created_at";
   private static final String CREATED_BY = "created_by";
+  private static final String INITIATING_IP = "initiating_ip";
 
   @Id
   private UUID id;
@@ -37,6 +38,9 @@ public class UploadSession {
 
   @Column(name = COMPLETED)
   private boolean completed;
+
+  @Column(name = INITIATING_IP)
+  private String initiatingIp;
 
   @Column(name = CREATED_AT, nullable = false, updatable = false)
   private Instant createdAt;
