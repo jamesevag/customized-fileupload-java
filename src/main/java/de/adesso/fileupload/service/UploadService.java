@@ -1,5 +1,6 @@
 package de.adesso.fileupload.service;
 
+import de.adesso.fileupload.dao.ChunkDao;
 import de.adesso.fileupload.entity.UploadChunk;
 import de.adesso.fileupload.entity.UploadSession;
 import de.adesso.fileupload.entity.ZipEntryMetadata;
@@ -18,14 +19,11 @@ import java.io.SequenceInputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.zip.ZipException;
 import javax.sql.DataSource;
@@ -46,18 +44,20 @@ public class UploadService {
 
   private final UploadSessionRepository sessionRepo;
   private final UploadChunkRepository chunkRepo;
+  private final ChunkDao chunkDao;
   private final DataSource dataSource;
   private final ZipEntryMetadataRepository zipEntryMetadataRepository;
   private final ApplicationEventPublisher eventPublisher;
 
   public UploadService(DataSource dataSource, UploadSessionRepository sessionRepo
       , UploadChunkRepository chunkRepo, ZipEntryMetadataRepository zipEntryMetadataRepository,
-      ApplicationEventPublisher eventPublisher) {
+      ApplicationEventPublisher eventPublisher, ChunkDao downloadRangeDao) {
     this.dataSource = dataSource;
     this.sessionRepo = sessionRepo;
     this.chunkRepo = chunkRepo;
     this.zipEntryMetadataRepository = zipEntryMetadataRepository;
     this.eventPublisher = eventPublisher;
+    this.chunkDao = downloadRangeDao;
   }
 
   public UploadSession saveUploadSession(String fileName, long totalSize) {
@@ -95,7 +95,6 @@ public class UploadService {
 
       chunkRepo.save(uploadChunk);
 
-      // Update session uploaded size
       session.setUploadedSize(session.getUploadedSize() + chunk.getSize());
       sessionRepo.save(session);
 
@@ -103,12 +102,16 @@ public class UploadService {
       handleErrorStoringUploadedChunk(chunkIndex, e, session, chunkBytes);
     }
 
+    triggerEventWhenCompleted(session);
+
+    sessionRepo.save(session);
+  }
+
+  private void triggerEventWhenCompleted(UploadSession session) {
     if (session.getUploadedSize() == session.getTotalSize()) {
       session.setCompleted(true);
       eventPublisher.publishEvent(new UploadCompletedEvent(session));
     }
-
-    sessionRepo.save(session);
   }
 
   public void storeZipFileMetadata(UploadSession session) {
@@ -156,8 +159,7 @@ public class UploadService {
     zipEntryMetadataRepository.save(meta);
   }
 
-
-  public InputStream getMergedInputStream(UUID sessionId) {
+  private InputStream getMergedInputStream(UUID sessionId) {
     try {
       Connection conn = dataSource.getConnection();
       conn.setAutoCommit(false);
@@ -165,19 +167,11 @@ public class UploadService {
       PGConnection pgConn = conn.unwrap(PGConnection.class);
       LargeObjectManager lobj = pgConn.getLargeObjectAPI();
 
-      PreparedStatement stmt = conn.prepareStatement("""
-              SELECT chunk_data FROM upload_chunk
-              WHERE upload_session_id = ?
-              ORDER BY chunk_index ASC
-          """);
-      stmt.setObject(1, sessionId);
-      ResultSet rs = stmt.executeQuery();
+      List<Long> chunkOids = chunkDao.findChunkOidsBySessionId(sessionId, conn);
 
       List<InputStream> streams = new ArrayList<>();
 
-      while (rs.next()) {
-        long oid = rs.getLong("chunk_data");
-
+      for (long oid : chunkOids) {
         LargeObject obj = lobj.open(oid, LargeObjectManager.READ);
         InputStream stream = new FilterInputStream(obj.getInputStream()) {
           @Override
@@ -189,11 +183,10 @@ public class UploadService {
             }
           }
         };
-
         streams.add(stream);
       }
 
-      // Ensure connection is closed when InputStream is closed
+      // Ensure connection is closed when all InputStreams are closed
       return new SequenceInputStream(Collections.enumeration(streams)) {
         @Override
         public void close() throws IOException {
@@ -222,10 +215,6 @@ public class UploadService {
 
   public List<UploadSession> getUnfinishedUploadSessions() {
     return sessionRepo.findByCompletedFalse();
-  }
-
-  public Optional<UploadSession> findById(UUID id) {
-    return sessionRepo.findById(id);
   }
 
   private void storeZipMetadata(UploadSession session, ZipArchiveEntry entry, String pathEncoded,

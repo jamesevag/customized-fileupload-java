@@ -20,7 +20,7 @@ public class UploadCompletedListener {
   @EventListener
   public void handleUploadComplete(UploadCompletedEvent event) {
     UploadSession session = event.getSession();
-    log.info("📦 Upload complete for session: {} — running encoding detection", session.getId());
+    log.info("Upload completed for session: {} — running encoding detection", session.getId());
     uploadService.storeZipFileMetadata(session);
   }
 }

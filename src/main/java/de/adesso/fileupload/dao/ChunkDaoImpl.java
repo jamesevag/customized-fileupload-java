@@ -10,7 +10,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public class DownloadRangeDaoImpl implements DownloadRangeDao {
+public class ChunkDaoImpl implements ChunkDao {
 
   @Override
   public List<Long> findChunkOidsBySessionId(UUID sessionId, Connection connection) {

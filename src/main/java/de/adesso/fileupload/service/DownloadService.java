@@ -1,6 +1,6 @@
 package de.adesso.fileupload.service;
 
-import de.adesso.fileupload.dao.DownloadRangeDao;
+import de.adesso.fileupload.dao.ChunkDao;
 import de.adesso.fileupload.entity.UploadSession;
 import de.adesso.fileupload.repository.UploadSessionRepository;
 import java.io.OutputStream;
@@ -20,14 +20,14 @@ import org.springframework.stereotype.Service;
 public class DownloadService {
 
   private final UploadSessionRepository sessionRepo;
-  private final DownloadRangeDao downloadRangeDao;
+  private final ChunkDao chunkDao;
   private final DataSource dataSource;
 
   public DownloadService(DataSource dataSource, UploadSessionRepository sessionRepo,
-      DownloadRangeDao downloadRangeDao) {
+      ChunkDao chunkDao) {
     this.dataSource = dataSource;
     this.sessionRepo = sessionRepo;
-    this.downloadRangeDao = downloadRangeDao;
+    this.chunkDao = chunkDao;
 
   }
 
@@ -47,7 +47,7 @@ public class DownloadService {
       PGConnection pgConnection = connection.unwrap(PGConnection.class);
       LargeObjectManager lobj = pgConnection.getLargeObjectAPI();
 
-      List<Long> chunkOids = downloadRangeDao.findChunkOidsBySessionId(sessionId, connection);
+      List<Long> chunkOids = chunkDao.findChunkOidsBySessionId(sessionId, connection);
 
       for (long oid : chunkOids) {
         if (currentPosition > rangeEnd) {
