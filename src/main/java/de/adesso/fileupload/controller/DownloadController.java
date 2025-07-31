@@ -1,5 +1,8 @@
 package de.adesso.fileupload.controller;
 
+
+import static de.adesso.fileupload.util.ClientIpResolver.isSameClientIp;
+
 import de.adesso.fileupload.entity.UploadSession;
 import de.adesso.fileupload.service.DownloadService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,7 +42,7 @@ public class DownloadController {
 
     UploadSession session = downloadService.findById(id).orElseThrow();
 
-    checkClientsIP(getClientsIp(request), session);
+    validateClientsIP(request.getRemoteAddr(), session);
 
     long totalSize = session.getTotalSize();
     long rangeStart = 0;
@@ -73,22 +76,13 @@ public class DownloadController {
         .body(responseBody);
   }
 
-  private void checkClientsIP(String clientsIp, UploadSession session) {
-    if (!clientsIp.equals(session.getInitiatingIp())) {
+  private void validateClientsIP(String clientsIp, UploadSession session) {
+    if (!isSameClientIp(clientsIp, session.getInitiatingIp())) {
       log.warn("Blocked download from IP {} (allowed: {})", clientsIp, session.getInitiatingIp());
       throw new ResponseStatusException(
           HttpStatus.FORBIDDEN, "Access denied from IP: " + clientsIp
       );
     }
   }
-
-  public String getClientsIp(HttpServletRequest request) {
-    String forwardedFor = request.getHeader("X-Forwarded-For");
-    if (forwardedFor != null && !forwardedFor.isBlank()) {
-      return forwardedFor.split(",")[0].trim();
-    }
-    return request.getRemoteAddr();
-  }
-
 
 }

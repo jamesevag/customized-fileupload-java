@@ -1,5 +1,7 @@
 package de.adesso.fileupload.controller;
 
+import static de.adesso.fileupload.util.ClientIpResolver.getClientsIp;
+
 import de.adesso.fileupload.entity.UploadSession;
 import de.adesso.fileupload.service.UploadService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -58,14 +60,5 @@ public class UploadController {
   public List<UploadSession> getFinishedSessions() {
     return uploadService.getFinishedUploadSessions();
   }
-
-  public String getClientsIp(HttpServletRequest request) {
-    String forwardedFor = request.getHeader("X-Forwarded-For");
-    if (forwardedFor != null && !forwardedFor.isBlank()) {
-      return forwardedFor.split(",")[0].trim();
-    }
-    return request.getRemoteAddr();
-  }
-
 
 }
